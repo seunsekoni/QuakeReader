@@ -17,6 +17,7 @@ package com.example.android.quakereport;
 
 import android.content.Intent;
 import android.net.Uri;
+import android.os.AsyncTask;
 import android.os.Bundle;
 import android.support.v7.app.AppCompatActivity;
 import android.view.View;
@@ -24,42 +25,111 @@ import android.widget.AdapterView;
 import android.widget.ListView;
 
 import java.util.ArrayList;
+import java.util.List;
 
 public class EarthquakeActivity extends AppCompatActivity {
 
     public static final String LOG_TAG = EarthquakeActivity.class.getName();
+
+    /**
+     * Sample JSON response for a USGS query
+     */
+    private static final String USGS_REQUEST_URL = "https://earthquake.usgs.gov/fdsnws/event/1/query?format=geojson&eventtype=earthquake&orderby=time&minmag=6&limit=10";
+
+    /**
+     * Adapter for the list of earthquakes
+     */
+    private QuakeAdapter mAdapter;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.earthquake_activity);
 
-        // Create a fake list of earthquake locations.
-        final ArrayList<Quaker> earthquakes = QueryUtils.extractEarthquakes();
+        // Start the AsyncTask to fetch the earthquake data
+        EarthquakeAsyncTask task = new EarthquakeAsyncTask();
+        task.execute(USGS_REQUEST_URL);
 
-
-
-        // Create a new {@link ArrayAdapter} of earthquakes
-        final QuakeAdapter adapter = new QuakeAdapter(this, earthquakes);
+        // Find a reference to the {@link ListView} in the layout
         ListView earthquakeListView = (ListView) findViewById(R.id.list);
+
+        // Create a new adapter that takes an empty list of earthquakes as input
+        mAdapter = new QuakeAdapter(this, new ArrayList<Quaker>());
 
         // Set the adapter on the {@link ListView}
         // so the list can be populated in the user interface
-        earthquakeListView.setAdapter(adapter);
+        earthquakeListView.setAdapter(mAdapter);
 
+        // Set an item click listener on the ListView, which sends an intent to a web browser
+        // to open a website with more information about the selected earthquake.
         earthquakeListView.setOnItemClickListener(new AdapterView.OnItemClickListener() {
             @Override
-            public void onItemClick(AdapterView<?> parent, View view, int position, long id) {
-//                Quaker currentReport = earthquakes.get(position); also works
-                Quaker currentReport = adapter.getItem(position);
-                Intent webIntent = new Intent(Intent.ACTION_VIEW);
-                String webPage = currentReport.getmUrl();
-                webIntent.setData(Uri.parse(webPage));
-                if (webIntent.resolveActivity(getPackageManager()) != null) {
-                    startActivity(webIntent);
-                }
+            public void onItemClick(AdapterView<?> adapterView, View view, int position, long l) {
+                // Find the current earthquake that was clicked on
+                Quaker currentEarthquake = mAdapter.getItem(position);
 
+                // Convert the String URL into a URI object (to pass into the Intent constructor)
+                Uri earthquakeUri = Uri.parse(currentEarthquake.getUrl());
+
+                // Create a new intent to view the earthquake URI
+                Intent websiteIntent = new Intent(Intent.ACTION_VIEW, earthquakeUri);
+
+                // Send the intent to launch a new activity
+                startActivity(websiteIntent);
             }
         });
     }
+
+    /**
+     * {@link AsyncTask} to perform the network request on a background thread, and then
+     * update the UI with the list of earthquakes in the response.
+     * <p>
+     * AsyncTask has three generic parameters: the input type, a type used for progress updates, and
+     * an output type. Our task will take a String URL, and return an Earthquake. We won't do
+     * progress updates, so the second generic is just Void.
+     * <p>
+     * We'll only override two of the methods of AsyncTask: doInBackground() and onPostExecute().
+     * The doInBackground() method runs on a background thread, so it can run long-running code
+     * (like network activity), without interfering with the responsiveness of the app.
+     * Then onPostExecute() is passed the result of doInBackground() method, but runs on the
+     * UI thread, so it can use the produced data to update the UI.
+     */
+    private class EarthquakeAsyncTask extends AsyncTask<String, Void, List<Quaker>> {
+
+        /**
+         * This method runs on a background thread and performs the network request.
+         * We should not update the UI from a background thread, so we return a list of
+         * {@link Quaker}s as the result.
+         */
+        @Override
+        protected List<Quaker> doInBackground(String... urls) {
+            // Don't perform the request if there are no URLs, or the first URL is null.
+            if (urls.length < 1 || urls[0] == null) {
+                return null;
+            }
+
+            List<Quaker> result = QueryUtils.fetchEarthquakeData(urls[0]);
+            return result;
+        }
+
+        /**
+         * This method runs on the main UI thread after the background work has been
+         * completed. This method receives as input, the return value from the doInBackground()
+         * method. First we clear out the adapter, to get rid of earthquake data from a previous
+         * query to USGS. Then we update the adapter with the new list of earthquakes,
+         * which will trigger the ListView to re-populate its list items.
+         */
+        @Override
+        protected void onPostExecute(List<Quaker> data) {
+            // Clear the adapter of previous earthquake data
+            mAdapter.clear();
+
+            // If there is a valid list of {@link Earthquake}s, then add them to the adapter's
+            // data set. This will trigger the ListView to update.
+            if (data != null && !data.isEmpty()) {
+                mAdapter.addAll(data);
+            }
+        }
+    }
+
 }

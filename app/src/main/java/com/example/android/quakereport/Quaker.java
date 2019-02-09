@@ -7,7 +7,7 @@ public class Quaker {
 
     private long mTimeInMilliSeconds;
 
-    private String mUrl;
+    private String Url;
 
     /**
      * Constructs a new {@link Quaker} object.
@@ -21,7 +21,7 @@ public class Quaker {
         mMagnitude = magnitude;
         mLocation = location;
         mTimeInMilliSeconds = timeInMilliseconds;
-        mUrl = url;
+        Url = url;
     }
 
     public double getmMagnitude() {
@@ -36,7 +36,7 @@ public class Quaker {
         return mTimeInMilliSeconds;
     }
 
-    public String getmUrl() {
-        return mUrl;
+    public String getUrl() {
+        return Url;
     }
 }
